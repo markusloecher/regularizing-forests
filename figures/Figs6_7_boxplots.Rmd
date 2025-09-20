@@ -1,0 +1,58 @@
+---
+title: "Strobl Simulation"
+author: "Loecher"
+date: "2023-09-23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+# Suppress summarise info
+options(dplyr.summarise.inform = FALSE)
+library(ggplot2)
+```
+
+## random forest 
+
+reading data
+```{r}
+load("Figs6_7_boxplots.rda", verbose = T)
+```
+
+
+Function defs:
+```{r funcs}
+source("fig_funs.R")
+```
+
+
+
+### MDI
+
+```{r}
+#df_MDI = df[,-c(6:10)]#only MDI
+melted_MDI = subset(melted_MDI, relevance %in% c(5,10,20))
+gp = generate_boxplots(melted_df=melted_MDI,yLimTop = 0.95, shrink_modes = c("hs", "hs_entropy","hs_permutation", "no_shrinkage"))
+gp
+ggsave(filename=paste('./MDI_strobl.pdf', sep=''), device="pdf", plot=gp, width=7, height=3.5)
+```
+
+### SHAP
+
+```{r}
+melted_SHAP = subset(melted_SHAP, relevance %in% c(5,10,20))
+  gp = generate_boxplots(melted_df=melted_SHAP, ylab = "SHAP", yLimTop=0.2,shrink_modes = c("hs", "hs_entropy","hs_permutation", "no_shrinkage"),yLimBottom =0.005)
+
+ggsave(filename=paste('./SHAP_strobl.pdf', sep=''), device="pdf", plot=gp, width=7, height=3.5)
+
+gp  
+```
+
+---------------------------
+
+## Extra Code
+
+```{r}
+runExtraCode= FALSE
+```

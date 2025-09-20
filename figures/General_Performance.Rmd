@@ -1,0 +1,266 @@
+---
+title: "adHS performance"
+author: "Loecher"
+date: "2023-09-23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+# Suppress summarise info
+options(dplyr.summarise.inform = FALSE)
+library(ggplot2)
+source("fig_funs.R")
+```
+
+# Random Forest 
+
+## Classification Data
+
+```{r}
+#f_path = "/Users/loecherm/Downloads/wetransfer_128-replications_2023-09-15_0526/general_performance/classification_rf/"
+f_path = "data/results_new/2023_10_23_1698043895_general_performance/classification_rf/"
+
+df = list()
+
+df[["breast-cancer"]] = read.csv(paste0(f_path,'breast-cancer.csv'))
+df[["diabetes"]]   = read.csv(paste0(f_path,'diabetes-clf.csv'))
+df[["german-credit"]]     = read.csv(paste0(f_path,'german.csv'))
+df[["haberman"]]   = read.csv(paste0(f_path,'haberman.csv'))
+df[["heart"]]      = read.csv(paste0(f_path,'heart.csv'))
+df[["ionosphere"]] = read.csv(paste0(f_path,'ionosphere.csv'))
+df[["juvenile"]]   = read.csv(paste0(f_path,'juvenile.csv'))
+df[["recidivism"]]    = read.csv(paste0(f_path,'recidivism.csv'))
+
+#for (i in 1:length(df)){
+#  colnames(df[[i]]) = gsub("SHAP_", "", colnames(df[[i]]), fixed = TRUE)
+#}
+```
+
+Quick EDA and summary stats:
+```{r}
+
+x = df[["breast-cancer"]]
+nReps = length(unique(x$replication))#16
+nShrink = length(unique(x$shrink_mode))#6
+nLambda = length(unique(x$lambda))#7
+nTrees = length(unique(x$num_trees))#100
+nReps*((nShrink-1)*(nLambda-1) +1)*nTrees#49600
+16*(5*6+1)*100
+49600/nrow(x) #7
+
+table(x$shrink_mode,x$lambda)
+table(x$shrink_mode,x$lambda, x$replication)
+
+for (s in unique(x$shrink_mode)){
+  
+}
+  for (l in unique(x$lambda)) {
+    
+  }
+```
+
+
+What are typical values for the optimal lambdas ?
+(Very high or strongly varying ones would make me suspicious)
+
+
+```{r}
+shrink_modes = c("hs", "hs_entropy","hs_permutation")
+
+df2 = df#[-6]#no ionosphere
+for (j in 1:length(df2)){
+    df2[[j]] = subset(df2[[j]], df2[[j]]$num_trees == max(df2[[j]]$num_trees))
+    df2[[j]] = subset(df2[[j]], df2[[j]]$shrink_mode %in% shrink_modes)
+    df2[[j]]$shrink_mode = gsub("hs_permutation", "hs_permute", df2[[j]]$shrink_mode)
+    df2[[j]]$dataset = names(df2)[j]
+    
+    if (j ==1) {
+          x = df2[[j]]
+        } else {
+          x = rbind.data.frame(x,df2[[j]])
+        }
+}
+```
+
+```{r}
+custom_palette <- c("#3498db", "#e74c3c", "#2ecc71", "#f1c40f", "#9b59b6")
+ylab = "lambda"
+
+p=ggplot(x, aes(x=dataset, y=lambda, fill=shrink_mode)) + geom_boxplot(outlier.size=0.25)
+p=p + scale_fill_manual(values=custom_palette) +
+    labs(x='', y=ylab) +
+    theme_minimal() +
+    #coord_cartesian(ylim = c(0, )) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position='right') +
+    guides(fill=guide_legend(title='shrink mode')) +
+    #guides(fill="none") 
+    ggtitle("") +
+    theme(plot.title = element_text(hjust = 0.5)) #
+```
+
+
+
+## Performance for max number of trees
+
+One plot for all datasets:
+
+
+```{r}
+df2 = df#[-6]#no ionosphere
+for (j in 1:length(df2)){
+      df2[[j]] = subset(df2[[j]], df2[[j]]$num_trees == max(df2[[j]]$num_trees))
+}
+
+p = perf_boxplots(df2, fname = NULL, title="Benchmark Performance, Classification",maximizeOverLambda=FALSE)
+ggsave(filename=paste('./perf_all.pdf', sep=''), device="pdf", plot=p, width=7, height=3.5)
+p
+```
+
+
+
+----------------------
+
+## Performance as function of number of trees:
+
+
+```{r}
+source("fig_funs.R")
+pList = perf_boxplots_trees(df)
+#put ionosphere (position 6) first for the legend:
+pList = pList[c(6,1:5,7,8)]
+pList[[1]] = pList[[1]] + theme(legend.position=c(0.7,0.4), legend.title=element_blank()) 
+for (i in c(1,5)) pList[[i]] = pList[[i]] + labs( y='AUC')
+for (i in c(5:8)) pList[[i]] = pList[[i]] + labs(x='num trees', size = 6)# + theme(axis.text=element_text(size=8))
+#pList[[2]] = pList[[2]] + geom_errorbar(aes(ymin=maxavgAUC-sd_AUC, ymax=maxavgAUC+sd_AUC), width=.1)#, position=pd
+#pList[[2]]
+```
+
+```{r}
+gp = ggpubr::ggarrange(plotlist=pList,nrow=2,ncol=4)
+ggsave(filename=paste('./perf_num_trees.pdf', sep=''), device="pdf", plot=gp, width=7, height=5)
+```
+
+------------------
+
+## Regression
+
+```{r}
+f_path = "../../results_new/2023_10_23_1698043895_general_performance/regression/"
+
+df = list()
+
+ff = list.files(f_path)
+
+for (f in ff){
+  df[[gsub(".csv","",f,fixed=T)]] = read.csv(paste0(f_path,f))
+}
+
+```
+
+All at once:
+
+```{r}
+df2 = df#[-6]#no ionosphere
+for (j in 1:length(df2)){
+      df2[[j]] = subset(df2[[j]], df2[[j]]$num_trees == max(df2[[j]]$num_trees))
+}
+
+p = perf_boxplots(df2, fname = NULL, perf = "R2",
+                  title="Benchmark Performance, Regression")
+ggsave(filename=paste('./perf_all_regression.pdf', sep=''), device="pdf", plot=p, width=7, height=3.5)
+p
+```
+
+
+---------------------------
+
+## Extra Code
+
+```{r}
+runExtraCode= FALSE
+```
+
+
+```{r, eval = runExtraCode}
+#find optimal lambda first:
+maxAUC = group_by(df$breast,shrink_mode,lambda) %>% 
+  summarise(avgAUC =mean(ROC.AUC)) %>% 
+#print(maxAUC)
+#maxAUC %>% #medAUC =median(ROC.AUC))
+  group_by(shrink_mode) %>%  
+  summarise(maxAUC =max(avgAUC), opLamIndex=which.max(avgAUC), opLam = lambda[which.max(avgAUC)])
+maxAUC
+```
+
+Subset data to optimal lambda:
+
+```{r, eval = runExtraCode}
+K=nrow(maxAUC)
+for (i in 1:K){
+  x =subset(df$breast, shrink_mode == maxAUC$shrink_mode[i] & lambda == maxAUC$opLam[i])
+  if (i ==1) {
+      bestROC = x
+  } else {
+      bestROC = rbind.data.frame(dataset,x)
+    }
+}
+bestROC$dataset = "breast"
+```
+
+```{r, eval = runExtraCode}
+ggplot(bestROC, aes(x=dataset, y=ROC.AUC, fill=shrink_mode)) +
+            geom_boxplot(outlier.size=0.25) +
+            scale_fill_manual(values=custom_palette) +
+            labs(x='', y='MDI') +
+            theme_minimal() +
+            coord_cartesian(ylim = c(0, 0.8)) +
+            #theme(legend.position='right') +
+            #guides(fill=guide_legend(title='')) +
+            guides(fill="none") 
+            ggtitle(paste("ROC")) +
+            theme(plot.title = element_text(hjust = 0.5)) # Center the title
+
+```
+
+
+```{r, eval=F}
+ExpectedAUC = c(0.89, 0.735, 0.66, 0.965, 0.82, 0.785, 0.885, 0.68)
+names(ExpectedAUC) = c("heart", "breast", "haberman","ionosphere", "diabetes", "german",  "juvenile", "recidivism")
+
+df2 = df[-6]#no ionosphere
+p = perf_boxplots(df2, fname = "enhanced_AUC.pdf", mAUC = ExpectedAUC)
+```
+
+
+```{r, eval = runExtraCode}
+for (i in 1:length(df)){
+  print(names(df)[i])
+  print(perf_boxplots(df[[i]]))
+}
+```
+
+Regression as a function of number of trees:
+
+```{r, eval = runExtraCode}
+source("fig_funs.R")
+pList = perf_boxplots_trees(df, perf="R2")
+#put ionosphere (position 6) first for the legend:
+pList = pList[c(6,1:5,7,8)]
+pList[[1]] = pList[[1]] + theme(legend.position=c(0.7,0.4), legend.title=element_blank()) 
+for (i in c(1,5)) pList[[i]] = pList[[i]] + labs( y='AUC')
+for (i in c(5:8)) pList[[i]] = pList[[i]] + labs(x='number trees')
+#pList[[2]] = pList[[2]] + geom_errorbar(aes(ymin=maxavgAUC-sd_AUC, ymax=maxavgAUC+sd_AUC), width=.1)#, position=pd
+#pList[[2]]
+```
+
+
+### `ShrinkageClassifier` and `ShrinkageRegressor`
+Both classes inherit from `ShrinkageEstimator`, which extends `sklearn.base.BaseEstimator`. Adaptive hierarchical shrinkage can be summarized as follows:
+
+$\hat{f}(\mathbf{x}) = \mathbb{E}_{t_0}[y] + \sum_{l=1}^L{\left(\mathbb{E}_{t_l}[y] - \mathbb{E}_{t_{l-1}}[y]\right)/ \left( 1 + \frac{g(t_{l-1})}{N(t_{l-1})}\right)}$
+
+where $g(t_{l-1})$ is some function of the node $t_{l-1}$. Classical hierarchical shrinkage (Agarwal et al. 2022) corresponds to $g(t_{l-1}) = \lambda$, where $\lambda$ is a chosen constant.
+
+

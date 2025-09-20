@@ -1,0 +1,88 @@
+---
+title: "Figures 1 and 2 in our paper"
+subtitle: "Equivalent to Figure 3 from the Mentch/Zhou JMLR paper"
+author: "Loecher"
+date: "2025-07-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#library(reticulate)
+library(tidyr)
+cwd= getwd()
+source("figure_utils.R")
+```
+
+
+
+```{r}
+sim200_dof_rho035 = list_from_pdDict_tocsv("data/sim200_dof_rho035", 
+                                           header =T, row.names=1, verbose=2)
+# names(sim200_dof_rho035) = gsub("lin_large","Linear Model High-10",names(sim200_dof_rho035), fixed = TRUE)
+# names(sim200_dof_rho035) = gsub("lin_medium","Linear Model Medium",names(sim200_dof_rho035), fixed = TRUE)
+# names(sim200_dof_rho035) = gsub("lin_small","Linear Model Low",names(sim200_dof_rho035), fixed = TRUE)
+# names(sim200_dof_rho035) = gsub("MARSadd","MARSadd Model",names(sim200_dof_rho035), fixed = TRUE)
+
+for (m in names(sim200_dof_rho035)) {
+  sim200_dof_rho035[[m]]$method = gsub("lin_large","Linear Model High-10",sim200_dof_rho035[[m]]$method, fixed = TRUE)
+  sim200_dof_rho035[[m]]$method = gsub("lin_medium","Linear Model Medium",sim200_dof_rho035[[m]]$method, fixed = TRUE)
+  sim200_dof_rho035[[m]]$method = gsub("lin_small","Linear Model Low",sim200_dof_rho035[[m]]$method, fixed = TRUE)
+  sim200_dof_rho035[[m]]$method = gsub("MARSadd","MARSadd Model",sim200_dof_rho035[[m]]$method, fixed = TRUE)
+}
+data_list = do.call("rbind.data.frame", sim200_dof_rho035)
+dat = pivot_longer(data_list, 1:5, names_to = "lambda", values_to = "dof")
+  
+```
+
+```{r}
+gp=plt_figure3_from_python(sim200_dof_rho035)
+gp
+```
+
+```{r}
+#ggsave("Fig3/Sim200_dof_vs_maxnodes.pdf",gp, width = 8, height = 5)
+```
+
+
+## Varying Cardinalities
+
+
+```{r}
+Fig3_varying_categories = list_from_pdDict_tocsv("data/Fig3_varying_categories",
+                                                 header =T, row.names=NULL, verbose=0)
+
+
+data_list = do.call("rbind.data.frame", Fig3_varying_categories)
+dat = pivot_longer(data_list, 1:5, names_to = "lambda", values_to = "dof")
+dat_old = dat
+#student actually mixed up MC2 and MC4, can you believe it !!
+MC_names =c("lin_func_discrete_MC2", "lin_func_discrete_MC4")
+names(MC_names)=c("lin_func_discrete_MC4", "lin_func_discrete_MC2")
+dat$method = MC_names[dat$method]
+#table(dat$method,dat_old$method)
+```
+
+```{r}
+#fix student error
+K=length(Fig3_varying_categories)
+for (i in 1:2) {
+  Fig3_varying_categories[[i]]$method = MC_names[Fig3_varying_categories[[i]]$method]
+}
+```
+
+
+```{r}
+#names(Fig3_varying_categories) = c("Low_discrete_MC2", "Low_discrete_MC4", "Low_discrete", "Low" )
+#dat = plt_figure3_from_python(Fig3_varying_categories, verbose=2)
+gp=plt_figure3_from_python(Fig3_varying_categories, scales = "fixed")
+gp
+```
+
+```{r}
+#debugging
+#dat = plt_figure3_from_python(Fig3_varying_categories, verbose=2)
+ggsave("Fig3_varying_categories.pdf",gp, width = 8, height = 5)
+```
+```
+

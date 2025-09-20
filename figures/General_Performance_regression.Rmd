@@ -1,0 +1,123 @@
+---
+title: "adHS performance"
+author: "Loecher"
+date: "2023-09-23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(ggplot2)
+```
+
+
+
+### Data
+
+```{r}
+## random forest 
+#f_path = "/Users/loecherm/Downloads/wetransfer_128-replications_2023-09-15_0526/general_performance/classification_rf/"
+#single tree:
+f_path = "data/wetransfer_128-replications_2023-09-15_0526/general_performance/regression/"
+
+datasets = list.files(f_path)
+
+df = list()
+for (d in datasets){
+  dn = gsub(".csv", "", d, fixed = T)
+  df[[dn]] = read.csv(paste0(f_path,d))
+}
+
+```
+
+```{r}
+#find optimal lambda first:
+minMSE = group_by(df$abalone,shrink_mode,lambda) %>% 
+  summarise(avgMSE =mean(MSE)) %>% 
+#print(minMSE)
+#minMSE %>% #medAUC =median(MSE))
+  group_by(shrink_mode) %>%  
+  summarise(minMSE =min(avgMSE), opLamIndex=which.min(avgMSE), opLam = lambda[which.min(avgMSE)])
+minMSE
+```
+
+
+
+
+```{r, warning=FALSE, message=FALSE}
+perf_boxplots <- function(df, shrink_modes = c("hs", "hs_entropy","hs_permutation"),
+                          save_as_pdf = FALSE) {
+    # Load the necessary libraries
+    library(ggplot2)
+    library(reshape2)
+
+    # Define a custom color palette with attractive colors
+    custom_palette <- c("#3498db", "#e74c3c", "#2ecc71", "#f1c40f", "#9b59b6")
+    
+    for (j in 1:length(df)){
+      df[[j]] = subset(df[[j]], df[[j]]$shrink_mode %in% shrink_modes)
+      df[[j]]$shrink_mode = gsub("hs_permutation", "hs_permute", df[[j]]$shrink_mode)
+   
+      #browser()
+      minMSE = group_by(df[[j]],shrink_mode,lambda) %>% 
+      summarise(avgMSE =mean(MSE)) %>% 
+      group_by(shrink_mode) %>%  
+      summarise(minMSE =min(avgMSE), opLamIndex=which.min(avgMSE), opLam = lambda[which.min(avgMSE)])
+      #print(minMSE)
+      K=nrow(minMSE)
+      for (i in 1:K){
+        x =subset(df[[j]], shrink_mode == minMSE$shrink_mode[i] & lambda == minMSE$opLam[i])
+        if (i ==1) {
+          bestROC = x
+        } else {
+          bestROC = rbind.data.frame(bestROC,x)
+        }
+      }
+      bestROC$dataset = names(df)[j]
+      
+      if (j ==1) {
+          dfAll = bestROC 
+        } else {
+          dfAll = rbind.data.frame(dfAll,bestROC)
+        }
+    }
+    
+    minMSE = group_by(dfAll,dataset, shrink_mode) %>% 
+      summarise(avgMSE =mean(MSE))
+    print(minMSE)
+   
+    p=ggplot(dfAll, aes(x=dataset, y=MSE, fill=shrink_mode)) +
+            geom_boxplot(outlier.size=0.25) +
+            scale_fill_manual(values=custom_palette) +
+            labs(x='', y='AUC') +
+            theme_minimal() +
+            #coord_cartesian(ylim = c(0, )) +
+            theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position='right') +
+            guides(fill=guide_legend(title='shrink mode')) +
+            #guides(fill="none") 
+            ggtitle(paste("ROC")) +
+            theme(plot.title = element_text(hjust = 0.5)) # Center the title
+
+       
+    if (save_as_pdf) {
+      pdf_filename = paste0("Performance_regression.pdf")
+      ggsave(pdf_filename, plot = p, device = "pdf", width = 8, height = 4, units = "in")
+  }
+    return(p)
+}
+
+# Example usage with your DataFrame 'your_df'
+#generate_boxplots(df)
+perf_boxplots(df, save_as_pdf = F)
+```
+
+
+```{r, eval=F}
+for (i in 1:length(df)){
+  print(names(df)[i])
+  print(perf_boxplots(df[[i]]))
+}
+```
+
+

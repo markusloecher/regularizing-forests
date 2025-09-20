@@ -1,0 +1,175 @@
+---
+title: "SHAP variability"
+author: "Loecher"
+date: "2023-09-23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(dplyr.summarise.inform = FALSE)
+library(dplyr)
+library(ggplot2)
+custom_palette <- c("black", "lightblue", "pink", "orange", "white")  # Specify your desired colors here
+```
+
+### Data
+
+```{r}
+f_path = "data/wetransfer_128-replications_2023-09-15_0526/shap_stability/"
+
+df = list()
+
+df[["breast"]] = read.csv(paste0(f_path,'breast-cancer.csv'))
+df[["diabetes"]]   = read.csv(paste0(f_path,'diabetes-clf.csv'))
+df[["german"]]     = read.csv(paste0(f_path,'german.csv'))
+df[["haberman"]]   = read.csv(paste0(f_path,'haberman.csv'))
+df[["heart"]]      = read.csv(paste0(f_path,'heart.csv'))
+df[["ionosphere"]] = read.csv(paste0(f_path,'ionosphere.csv'))
+df[["juvenile"]]   = read.csv(paste0(f_path,'juvenile.csv'))
+#df[["recidivism"]]    = read.csv(paste0(f_path,'recidivism.csv'))
+
+for (i in 1:length(df)){
+  colnames(df[[i]]) = gsub("SHAP_", "", colnames(df[[i]]), fixed = TRUE)
+}
+```
+
+```{r}
+for (i in 1:length(df)){
+  print(length(grep("SHAP", colnames(df[[i]]))))
+  print(names(df)[i])
+  print(colnames(df[[i]]))
+  print("**********************************")
+}
+```
+
+
+```{r}
+#manual try
+i=1
+
+df_long <- reshape2::melt(df[[i]], id.vars = c('shrink_mode', 'sample_idx', 'replication'))
+
+  # Group by 'shrink_mode' and 'variable' (formerly 'feature') and calculate variance
+  #grouped_data <- aggregate(value ~ shrink_mode + variable, data = df_long, FUN = var)
+  grouped_data <-  group_by(df_long,shrink_mode,variable,replication) %>% 
+      summarise(globalSHAP =mean(abs(value))) %>% group_by(shrink_mode,variable) 
+  var_globalSHAP <- grouped_data %>% summarise( varSHAP = 10^4*var(globalSHAP))
+
+    p <- ggplot(var_globalSHAP, aes(x = variable, y = varSHAP, fill = shrink_mode)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    labs(x = "Feature", y = "SHAP Variability", title = names(df)[i]) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "right") +
+    scale_fill_manual(values = custom_palette) +  # Set custom colors here
+    guides(fill = guide_legend(title = "Shrink Mode"))
+p
+```
+
+```{r}
+# Function to plot variability by feature and save as PDF
+plot_variability_by_feature <- function(df, dataID=1, save_as_pdf = FALSE, 
+                  shrink_modes = c("hs", "hs_entropy","hs_permutation"),
+                  legend.position = c(0.85,0.85),
+                  maxFtrLen = 10) {
+  p=ncol(df[[dataID]])
+  ftrNames = colnames(df[[dataID]])[-c(1,2,p)]
+  tooLong = which(nchar(ftrNames)>maxFtrLen)
+  if (length(tooLong)>0) {
+    ftrNames[tooLong] = abbreviate(ftrNames[tooLong],minlength = 8, strict=T)
+    colnames(df[[dataID]])[-c(1,2,p)] = ftrNames
+  }
+  # Melt the data frame to long format
+  df_long <- reshape2::melt(df[[dataID]], id.vars = c('shrink_mode', 'sample_idx', 'replication'))
+  df_long = subset(df_long, df_long$shrink_mode %in% shrink_modes)
+  df_long$shrink_mode = gsub("permutation", "permute", df_long$shrink_mode)
+  
+  # Group by 'shrink_mode' and 'variable' (formerly 'feature') and calculate variance
+  #grouped_data <- aggregate(value ~ shrink_mode + variable, data = df_long, FUN = var)
+  grouped_data <-  group_by(df_long, shrink_mode,variable,replication) %>% 
+      summarise(globalSHAP =mean(abs(value))) %>% group_by(shrink_mode,variable) 
+  var_globalSHAP <- grouped_data %>% summarise( varSHAP = 10^4*var(globalSHAP))
+
+  p <- ggplot(var_globalSHAP, aes(x = variable, y = varSHAP, fill = shrink_mode)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    labs(x = "Feature", y = "SHAP Variability", title = names(df)[i]) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = legend.position) +
+    scale_fill_manual(values = custom_palette) +  # Set custom colors here
+    guides(fill = guide_legend(title = "Shrink Mode"))
+  
+   # Save the plot as a PDF if save_as_pdf is TRUE
+  if (save_as_pdf) {
+    pdf_filename = paste0("SHAP_var_", names(df)[dataID], ".pdf")
+    ggsave(pdf_filename, plot = p, device = "pdf", width = 8, height = 3, units = "in")
+  }
+  
+  p
+}
+p = plot_variability_by_feature(df,1)
+```
+
+```{r}
+for (i in 1:length(df)) p = plot_variability_by_feature(df,i, save_as_pdf=TRUE)
+```
+
+
+```{r oldCode, eval = FALSE}
+# Load the required libraries
+library(ggplot2)
+library(reshape2)
+
+# Function to modify column names
+modified <- function(df) {
+  df <- data.frame(sapply(df, function(feature) {
+    if (length(unlist(strsplit(feature, "_"))) > 1 && feature != 'shrink_mode' && feature != 'sample_idx') {
+      return(paste(unlist(strsplit(feature, "_"))[2], collapse = " "))
+    } else {
+      return(feature)
+    }
+  }))
+  colnames(df) <- colnames(df)
+  return(df)
+}
+
+# Function to plot variability by feature and save as PDF
+plot_variability_by_feature <- function(df, save_as_pdf = FALSE, pdf_filename = "plot.pdf") {
+  # Melt the data frame to long format
+  df_long <- reshape2::melt(df, id.vars = c('shrink_mode', 'sample_idx', 'replication'))
+
+  # Group by 'shrink_mode' and 'variable' (formerly 'feature') and calculate variance
+  grouped_data <- aggregate(value ~ shrink_mode + variable, data = df_long, FUN = var)
+
+  # Rename column names using the modified function
+  colnames(grouped_data) <- c("shrink_mode", "feature", "variability")
+
+  # Create a custom color palette with specific colors
+  custom_palette <- c("black", "lightblue", "pink", "orange", "white")  # Specify your desired colors here
+
+  # Create the ggplot object with the custom color palette
+  p <- ggplot(grouped_data, aes(x = feature, y = variability, fill = shrink_mode)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    labs(x = "Feature", y = "Variability (Variance)", title = "Variability of Shrink Modes by Feature") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "top") +
+    scale_fill_manual(values = custom_palette) +  # Set custom colors here
+    guides(fill = guide_legend(title = "Shrink Mode"))
+
+  # Save the plot as a PDF if save_as_pdf is TRUE
+  if (save_as_pdf) {
+    ggsave(pdf_filename, plot = p, device = "pdf", width = 12, height = 6, units = "in")
+  }
+
+  # Print the plot
+  print(p)
+}
+
+# Example usage:
+# Replace 'my_data' with your actual data frame
+#plot_variability_by_feature(df, save_as_pdf = TRUE, pdf_filename = "plot.pdf")
+```
+
+```{r}
+
+```
+

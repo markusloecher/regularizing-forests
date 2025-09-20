@@ -1,0 +1,54 @@
+---
+title: "Appendix Figures"
+author: "Loecher"
+date: "2023-11-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+# Suppress summarise info
+options(dplyr.summarise.inform = FALSE)
+library(ggplot2)
+```
+
+## alpha Values
+
+## Single Tree
+
+```{r}
+perm_alph <- read.csv("~/Documents/GitHub/adaptive-hierarchical-shrinkage/experiments/power_simulation/PermutationDiagnostics_dt.csv")
+```
+
+## Random Forest
+
+```{r}
+perm_alph <- read.csv("~/Documents/GitHub/adaptive-hierarchical-shrinkage/experiments/power_simulation/PermutationDiagnostics_rf.csv")
+```
+
+
+```{r}
+perm_alph$feature = factor(perm_alph$feature)
+perm_alph$sample_size = cut(perm_alph$n, breaks = c(1,5, 20, 50, 1000), include.lowest=TRUE)#, labels = c(""))
+ylab = "multipliers"  
+title = "permutation scheme, Strobl"
+
+p=ggplot(perm_alph, aes(x=feature, y=alpha, fill=sample_size)) + geom_boxplot(outlier.size=0.25) +
+    #scale_fill_manual(values=custom_palette) +
+    labs(x='feature', y=ylab) +
+    theme_minimal() +
+    #coord_cartesian(ylim = c(0, )) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position='right') + guides(fill=guide_legend(title='shrink mode')) +
+    #guides(fill="none") 
+    ggtitle(title) +
+    theme(plot.title = element_text(hjust = 0.5)) # Center the title
+  
+
+SampleSizes = dplyr::group_by(perm_alph, feature, sample_size) %>% summarise(Q80 = quantile(alpha,probs=0.8), n = n())
+
+p + geom_text(data=SampleSizes, aes(y=Q80, label= paste0("n = ", n)), position = position_dodge(width = 1))
+```
+
+
+

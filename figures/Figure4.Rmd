@@ -1,0 +1,69 @@
+---
+title: "Figure4"
+author: "Loecher"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#library(reticulate)
+library(tidyr)
+
+source("figure_utils.R")
+if (!dir.exists("Fig4")) dir.create("Fig4")
+```
+
+
+
+
+```{r}
+diff_bag_rf = list_from_pdDict_tocsv("data/diff_bag_rf/", head=T, verbose=0)
+```
+
+```{r}
+diff_bag_rf_var = list_from_pdDict_tocsv("data/diff_bag_rf_var/", head=T, verbose=0)
+
+diff_bag_rf_var[[1]]$method="Linear Model n=500 p=100 s=5"
+diff_bag_rf_var[[2]]$method="MARS Model n=200"
+diff_bag_rf_var[[3]]$method="MARS Model n=500"
+
+data_list_var = do.call("rbind.data.frame", diff_bag_rf_var)
+colnames(data_list_var)[1:2] = c("none", "optimal")
+dat_var = pivot_longer(data_list_var, 1:2, names_to = "shrinkage", values_to = "SE")
+dat_var$SE = sqrt(dat_var$SE/1344)
+```
+
+```{r}
+#for (i in 1:3) diff_bag_rf[[i]]$method = gsub("Diff_bag_vs_rf_", "", diff_bag_rf[[i]]$method)
+
+diff_bag_rf[[1]]$method="Linear Model n=500 p=100 s=5"
+diff_bag_rf[[2]]$method="MARS Model n=200"
+diff_bag_rf[[3]]$method="MARS Model n=500"
+
+data_list = do.call("rbind.data.frame", diff_bag_rf)
+colnames(data_list)[1:2] = c("none", "optimal")
+dat = pivot_longer(data_list, 1:2, names_to = "shrinkage", values_to = "bagminusrf")
+```
+
+```{r}
+dat=merge(dat, dat_var, by.x = 1:3)
+```
+
+
+```{r}
+gp = ggplot(dat,aes(x=SNR,y=bagminusrf,color=shrinkage))+geom_line(lwd=1, aes(linetype=shrinkage))+ 
+     scale_linetype_manual(values=c("twodash", "solid")) + geom_point(aes(shape = shrinkage), size =1 )+ 
+    facet_wrap(~ method, scales = "free") + 
+    ylab("Error(Bagg)-Error(RF)")+ xlab("signal-to-noise ratio") + 
+    geom_abline(intercept = 0, slope = 0, linewidth = 0.75,linetype="dotted")+
+  geom_errorbar(aes(ymin=bagminusrf-SE, ymax=bagminusrf+SE), width=.2)  +
+    theme_bw() + scale_x_log10()
+gp
+```
+
+
+```{r}
+ggsave("Fig4/Bagging_vs_RF_differences.pdf",gp, width = 8, height = 3.5)
+```
+
+
